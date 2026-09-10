@@ -71,6 +71,7 @@ from napari_deeplabcut.core.project_paths import (
     infer_dlc_project_from_points_meta,
 )
 from napari_deeplabcut.core.provenance import resolve_output_path_from_metadata, should_nan_clear_existing_for_save
+from napari_deeplabcut.core.workspace_config import is_workspace_manifest, workspace_config_as_dict
 from napari_deeplabcut.utils.debug import log_timing
 
 logger = logging.getLogger(__name__)
@@ -94,6 +95,12 @@ LOG_VIDEO_READER_TIMING = False
 
 def load_config(config_path: str):
     # NOTE: intentionally minimal; callers own error handling
+    #
+    # A FreeDLC workspace stores its project as project.toml rather than config.yaml;
+    # translate it to the same dict shape the rest of the reader expects, so no
+    # downstream code needs to know which layout it came from.
+    if is_workspace_manifest(config_path):
+        return workspace_config_as_dict(config_path)
     try:
         with open(config_path) as file:
             return yaml.safe_load(file)

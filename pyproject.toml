@@ -39,6 +39,7 @@ dependencies = [
   "scipy",
   "shiboken6>=6.4.2",
   "tables",
+  "tomli; python_version < '3.11'",
 ]
 [[project.authors]]
 name = "Team DeepLabCut, led by Jessy Lauer"

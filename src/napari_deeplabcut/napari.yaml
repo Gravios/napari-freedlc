@@ -38,7 +38,7 @@ contributions:
       filename_patterns: ['*.mp4', '*.mov', '*.avi']
     - command: napari-deeplabcut.get_config_reader
       accepts_directories: false
-      filename_patterns: ['*.yaml']
+      filename_patterns: ['*.yaml', 'project.toml']
     - command: napari-deeplabcut.get_folder_parser
       accepts_directories: true
       filename_patterns: ['*']

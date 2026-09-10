@@ -25,6 +25,7 @@ from napari_deeplabcut.core.project_paths import (
     looks_like_dlc_labeled_folder,
     session_key_from_project_context,
 )
+from napari_deeplabcut.core.workspace_config import is_workspace_manifest
 
 logger = logging.getLogger(__name__)
 
@@ -99,7 +100,7 @@ def get_video_reader(path):
 def get_config_reader(path):
     if isinstance(path, list):
         path = path[0]
-    if not str(path).endswith(".yaml"):
+    if not (str(path).endswith(".yaml") or is_workspace_manifest(path)):
         return None
     maybe_install_keypoint_controls_autostart()
     return read_config

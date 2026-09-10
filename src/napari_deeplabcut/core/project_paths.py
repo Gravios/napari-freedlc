@@ -24,6 +24,7 @@ from enum import Enum
 from pathlib import Path, PureWindowsPath
 
 from napari_deeplabcut.config.models import DLCProjectContext, PointsMetadata
+from napari_deeplabcut.core.workspace_config import is_workspace_manifest
 
 logger = logging.getLogger(__name__)
 
@@ -199,6 +200,9 @@ def should_force_dlc_reader(paths: str | Path | Iterable[str | Path]) -> bool:
         return False
 
     if any(is_config_yaml(p) for p in paths):
+        return True
+
+    if any(is_workspace_manifest(p) for p in paths):
         return True
 
     if any(looks_like_dlc_labeled_folder(p) for p in paths):
