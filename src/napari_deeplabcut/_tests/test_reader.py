@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import cv2
 import dask.array as da
 import numpy as np
@@ -277,6 +279,40 @@ def test_read_images_list_input(tmp_path):
 def test_read_images_empty_list():
     with pytest.raises(OSError):
         read_images([])
+
+
+def _symlink_or_skip(link: Path, target: Path) -> None:
+    try:
+        link.symlink_to(target)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlinks are not available on this platform")
+
+
+def test_read_images_names_dangling_links_when_nothing_is_readable(tmp_path):
+    """A folder of broken frame links must not read as a folder with no images."""
+    loop = tmp_path / "img000.png"
+    _symlink_or_skip(loop, loop)  # a link to itself
+    _symlink_or_skip(tmp_path / "img001.png", tmp_path / "gone.png")
+
+    for path in (tmp_path, [loop, tmp_path / "img001.png"]):
+        with pytest.raises(OSError, match="No supported images were found") as excinfo:
+            read_images(path)
+        assert "2 image link(s) point to missing files" in str(excinfo.value)
+        assert "img000.png" in str(excinfo.value)
+
+
+def test_read_images_skips_dangling_links_and_says_so(tmp_path, caplog):
+    good = tmp_path / "img000.png"
+    imsave(good, (np.random.rand(10, 10, 3) * 255).astype(np.uint8))
+    _symlink_or_skip(tmp_path / "img001.png", good)  # a valid link is just an image
+    _symlink_or_skip(tmp_path / "img002.png", tmp_path / "gone.png")
+
+    with caplog.at_level("WARNING", logger="napari_deeplabcut.core.io"):
+        [(data, params, kind)] = read_images(tmp_path)
+
+    assert kind == "image" and data.shape[0] == 2
+    assert [Path(p).name for p in params["metadata"]["paths"]] == ["img000.png", "img001.png"]
+    assert "1 image link(s) point to missing files" in caplog.text
 
 
 def test_read_images_single_glob_pattern(tmp_path):

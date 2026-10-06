@@ -27,8 +27,8 @@ coordinate space the model trains on.
 **Why it is not done yet.** napari's discovery and writer are wired to the
 `labeled-data/<dataset>/` path convention (`core/project_paths.py`): the save target
 and dataset name are resolved from the literal `labeled-data` token in a path. The
-workspace's `sources/annotations/<id>/frames/` tree has no such token, so native
-read/write means teaching that machinery a second path convention.
+workspace's `sources/annotations/<id>/frames/original/` tree has no such token, so
+native read/write means teaching that machinery a second path convention.
 
 The harder half is the coordinate scale. It currently lives in exactly one place --
 FreeDLC's ingest step -- and annotation happens on original-resolution frames. A

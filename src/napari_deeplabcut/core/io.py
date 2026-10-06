@@ -759,6 +759,32 @@ def _expand_image_paths(path: str | Path | list[str | Path] | tuple[str | Path, 
     return expanded
 
 
+def _dangling_image_links(path: str | Path | list[str | Path] | tuple[str | Path, ...]) -> list[Path]:
+    """Image-named symlinks in ``path`` whose target is not a readable file.
+
+    ``_expand_image_paths`` skips these (a dangling or looping link is not a file),
+    so without naming them a folder of broken links looks like a folder of no images.
+    """
+    raw_paths = [Path(p) for p in path] if isinstance(path, (list, tuple)) else [Path(path)]
+    dangling: list[Path] = []
+
+    for p in raw_paths:
+        if p.is_dir() and p.suffix.lower() != ".zarr":
+            try:
+                candidates = sorted(p.iterdir(), key=lambda q: q.name)
+            except OSError:
+                continue
+        elif has_magic(p.name):
+            continue
+        else:
+            candidates = [p]
+        dangling.extend(
+            c for c in candidates if c.suffix.lower() in _SUPPORTED_SUFFIXES and c.is_symlink() and not c.is_file()
+        )
+
+    return dangling
+
+
 # Lazy image reader that supports directories and lists of files
 def _lazy_imread(
     filenames: str | Path | list[str | Path],
@@ -876,8 +902,16 @@ def read_images(
     dlc_meta: dict | None = None,
 ) -> list[LayerData]:
     filepaths = _expand_image_paths(path)
+    dangling = _dangling_image_links(path)
+    broken = (
+        f"{len(dangling)} image link(s) point to missing files, e.g. {dangling[0]} -> {os.readlink(dangling[0])}"
+        if dangling
+        else ""
+    )
     if not filepaths:
-        raise OSError(f"No supported images were found in {path}")
+        raise OSError(f"No supported images were found in {path}" + (f" ({broken})" if broken else ""))
+    if broken:
+        logger.warning("Skipping unreadable frames: %s", broken)
 
     filepaths = natsorted(filepaths, key=str)
     kwargs = _build_image_layer_kwargs(filepaths=filepaths, dlc_meta=dlc_meta, name="images")

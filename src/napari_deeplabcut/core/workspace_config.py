@@ -14,10 +14,10 @@ reader accepts ``project.toml`` alongside ``config.yaml``.
 It does *not* teach napari the workspace's frame layout or saving. That is on purpose.
 napari's discovery and writer are wired to the ``labeled-data/<dataset>/`` convention
 (see :mod:`napari_deeplabcut.core.project_paths`), which the workspace's
-``sources/annotations/<id>/frames/`` tree does not use, and the FreeDLC side already
+``sources/annotations/<id>/frames/original/`` tree does not use, and the FreeDLC side
 bridges this: ``dlc-ws annotate`` stages a ``labeled-data`` view of a video's frames
-plus a synthesized config, launches napari on that, and on close scales the saved
-coordinates from the original-resolution frames into the processed space the model
+(symlinks) plus a synthesized config, launches napari on that, and on close scales the
+saved coordinates from the original-resolution frames into the processed space the model
 trains on. Keeping napari purely legacy-shaped -- reading project.toml only for the
 schema -- means the original/processed split and the annotation scale stay entirely on
 the FreeDLC side, with a single home for the coordinate transform. Reproducing the
