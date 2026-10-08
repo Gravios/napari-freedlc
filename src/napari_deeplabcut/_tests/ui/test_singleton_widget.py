@@ -203,3 +203,40 @@ def test_get_existing_returns_none_after_widget_deleted(qtbot):
     qtbot.waitUntil(lambda: TestSingleton.get_existing(viewer) is None, timeout=1000)
 
     assert TestSingleton.get_existing(viewer) is None
+
+
+class StrictSingleton(ViewerSingletonWidget):
+    """Behaves like PyQt (sip): no instance attribute may be read or set before QWidget.__init__()."""
+
+    _ready: set[int] = set()
+
+    def _check(self, name):
+        if not name.startswith("__") and name not in type(self).__dict__ and name not in vars(ViewerSingletonWidget):
+            if id(self) not in StrictSingleton._ready:
+                raise RuntimeError("super-class __init__() of type StrictSingleton was never called")
+
+    def __getattribute__(self, name):
+        if name.startswith("_viewer_singleton") or name == "init_count":
+            object.__getattribute__(self, "_check")(name)
+        return super().__getattribute__(name)
+
+    def __setattr__(self, name, value):
+        self._check(name)
+        super().__setattr__(name, value)
+
+    def __init__(self, napari_viewer):
+        if not self._singleton_prepare_init(napari_viewer=napari_viewer):
+            return
+        super().__init__()
+        StrictSingleton._ready.add(id(self))
+        self._singleton_finalize_init()
+        self.init_count = getattr(self, "init_count", 0) + 1
+
+
+def test_singleton_touches_no_instance_attribute_before_qt_init(qtbot):
+    viewer = DummyViewer()
+    first = StrictSingleton(viewer)
+    qtbot.addWidget(first)
+    again = StrictSingleton(viewer)
+    assert again is first and first.init_count == 1
+    assert first._viewer_singleton_key is viewer

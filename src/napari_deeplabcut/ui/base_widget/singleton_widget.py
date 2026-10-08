@@ -9,11 +9,21 @@ from ._qt_timers import OwnedTimersMixin
 
 
 class ViewerSingletonWidget(QWidget, OwnedTimersMixin):
-    """Base QWidget enforcing at most one live instance per viewer per subclass."""
+    """Base QWidget enforcing at most one live instance per viewer per subclass.
+
+    Nothing here reads or writes an instance attribute before ``QWidget.__init__()``:
+    PyQt (sip) raises ``RuntimeError: super-class __init__() ... was never called`` on
+    any such access, which PySide tolerates -- and qtpy picks PyQt5 whenever it is
+    installed. Objects still awaiting their first ``__init__`` are therefore tracked by
+    id, in :attr:`_awaiting_init`, rather than by a flag on the object.
+    """
 
     _instances_by_cls: ClassVar[
         dict[type, weakref.WeakKeyDictionary[object, weakref.ReferenceType[ViewerSingletonWidget]]]
     ] = {}
+
+    #: id(object) -> canonical viewer, for objects ``__new__`` made whose ``__init__`` has not run
+    _awaiting_init: ClassVar[dict[int, object]] = {}
 
     # ------------------------------------------------------------------ #
     # Viewer extraction / normalization                                  #
@@ -119,19 +129,23 @@ class ViewerSingletonWidget(QWidget, OwnedTimersMixin):
 
         obj = super().__new__(cls)
         cls._instance_registry()[canonical] = weakref.ref(obj)
+        ViewerSingletonWidget._awaiting_init[id(obj)] = canonical
         return obj
 
     def _singleton_prepare_init(self, *args, **kwargs) -> bool:
-        """Pre-Qt-init guard. Safe to call before QWidget.__init__()."""
-        if getattr(self, "_viewer_singleton_initialized", False):
+        """Pre-Qt-init guard. Safe to call before QWidget.__init__().
+
+        Returns False for an existing instance that ``__new__`` handed back, whose
+        ``__init__`` must not run again. Touches no instance attribute (see the class
+        docstring).
+        """
+        if id(self) not in ViewerSingletonWidget._awaiting_init:
             return False
 
         viewer = self._extract_viewer_from_call(args, kwargs)
         if viewer is None:
             raise TypeError(f"{self.__class__.__name__} requires a viewer argument during initialization.")
-
-        self._viewer_singleton_initialized = True
-        self._viewer_singleton_key = self.canonical_viewer(viewer)
+        ViewerSingletonWidget._awaiting_init[id(self)] = self.canonical_viewer(viewer)
         return True
 
     def _singleton_finalize_init(self) -> None:
@@ -139,6 +153,8 @@ class ViewerSingletonWidget(QWidget, OwnedTimersMixin):
         # only connect once, and only after QObject exists
         if getattr(self, "_viewer_singleton_finalize_done", False):
             return
+        self._viewer_singleton_initialized = True
+        self._viewer_singleton_key = ViewerSingletonWidget._awaiting_init.pop(id(self), None)
         self._viewer_singleton_finalize_done = True
         self.destroyed.connect(self._on_singleton_destroyed)
         self._init_owned_timers()
