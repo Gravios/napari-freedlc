@@ -17,6 +17,30 @@ A napari plugin for keypoint annotation and label refinement, also used within D
 
 ---
 
+## napari-freedlc
+
+This repository is **napari-freedlc**, the fork of napari-deeplabcut used by
+[FreeDLC](https://github.com/Gravios/FreeDLC). `fdlc annotate` opens it on a
+workspace video's full-resolution frames and reads the saved labels back; see
+FreeDLC's [workspace guide](https://github.com/Gravios/FreeDLC/blob/main/docs/workspace_cli.md).
+Differences from upstream: it names dangling frame links instead of reporting
+"no images", it reads a workspace `project.toml` for the keypoint schema
+(`core/workspace_config.py`), and it requires `numpy>=2` (as FreeDLC does) and
+`napari<0.9`.
+
+Install it from a clone, **after** FreeDLC -- it installs under the same package
+name, `napari-deeplabcut`, and replaces the PyPI release that `FreeDLC[gui]` pulls
+in:
+
+```bash
+git clone https://github.com/Gravios/napari-freedlc.git
+pip install -e ./napari-freedlc
+```
+
+The upstream instructions below install the PyPI release instead.
+
+---
+
 ## Installation
 
 If you installed `DeepLabCut[gui]`, this plugin is already included.

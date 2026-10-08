@@ -9,16 +9,16 @@ constraints that shape them.
 **Goal.** Let a FreeDLC workspace project be annotated by opening its `project.toml`
 directly in napari, with no `fdlc` command in the loop -- napari loads the
 video's original-resolution frames, and on save writes the workspace's
-`sources/annotations/<id>/labels.parquet` itself, already in the processed
-coordinate space the model trains on.
+`sources/annotations/<id>/labels.parquet` itself.
 
 **Current state.** Two things exist today and are deliberately narrower:
 
 - **`fdlc annotate` (the supported path).** FreeDLC stages a legacy
   `labeled-data/<id>/` view of a video's original-resolution frames plus a
-  synthesized `config.yaml`, launches napari on that, and on close scales the saved
-  coordinates from original into processed space when ingesting to `labels.parquet`.
-  This is complete and scale-correct.
+  synthesized `config.yaml`, launches napari on that, and on close ingests the saved
+  coordinates into `labels.parquet` as they were placed, in original pixels, with a
+  `labels.toml` recording that space. Conversion to the processed frames happens
+  when FreeDLC trains or evaluates. This is complete.
 - **`project.toml` schema reader (`core/workspace_config.py`).** napari can open a
   workspace `project.toml` for its keypoint *schema* (bodyparts, skeleton, scorer).
   It does not load workspace frames or save to workspace paths; frames and saving
@@ -30,29 +30,26 @@ and dataset name are resolved from the literal `labeled-data` token in a path. T
 workspace's `sources/annotations/<id>/frames/original/` tree has no such token, so
 native read/write means teaching that machinery a second path convention.
 
-The harder half is the coordinate scale. It currently lives in exactly one place --
-FreeDLC's ingest step -- and annotation happens on original-resolution frames. A
-naive "save at processed scale" inside napari would write processed-space
-coordinates into an artifact that references original-resolution frames, which is
-internally inconsistent (a marker at x=96 on a 1920px frame). Any standalone writer
-must therefore keep the frame references and the coordinate space in the same scale
--- e.g. write `labels.parquet` whose image column points at the processed frames and
-whose coordinates are processed-space -- and must not become a second, divergent copy
-of the scale transform.
+The coordinate scale is no longer an obstacle. Labels are stored in the pixels of
+the frames they were placed on (original), and `labels.toml` says so, so a native
+writer stores what napari shows and needs no transform. Scaling to the processed
+frames has exactly one home, FreeDLC's `Project.labels_scale_to`, applied at
+training and evaluation time. A native reader must still honour `labels.toml`:
+labels written by older FreeDLC versions may be in processed pixels, with the
+scale recorded, and have to be scaled *up* for display.
 
 **What it would require.**
 
 - A workspace-aware reader: locate a video's original frames from a `project.toml`
-  (or from an annotations folder), load them, and -- when a `labels.parquet` already
-  exists -- scale its processed-space coordinates *up* to original space for display,
-  so existing labels round-trip.
-- A workspace-aware writer: on save, scale original-space coordinates *down* to
-  processed space and write `labels.parquet` with processed frame references, rather
-  than a `labeled-data` CollectedData.
-- A single, shared definition of the per-video anisotropic scale
-  (`scale_x`, `scale_y`), derived from the original/processed video dimensions, used
-  by both the reader (up) and the writer (down), so the transform is not duplicated.
+  (or from an annotations folder), load them, and load `labels.parquet` when it
+  exists -- converting to original pixels when `labels.toml` says `space =
+  "processed"`.
+- A workspace-aware writer: on save, write `labels.parquet` (original pixels, image
+  names as in `frames/original/`) and a `labels.toml` with `space = "original"`,
+  rather than a `labeled-data` CollectedData.
+- Proposed markers: `fdlc extract --from-run` currently places a model's
+  predictions in the staged CollectedData; a native path would need its own place
+  for them that is not mistaken for labels.
 
-Until then, `fdlc annotate` is the path that produces correct processed-space
-labels; opening `project.toml` in napari is for schema-correct viewing and labeling
-that is then ingested by FreeDLC.
+Until then, `fdlc annotate` is the supported path; opening `project.toml` in napari
+is for schema-correct viewing and labeling that is then ingested by FreeDLC.

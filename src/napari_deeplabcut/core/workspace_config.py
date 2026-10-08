@@ -16,14 +16,12 @@ napari's discovery and writer are wired to the ``labeled-data/<dataset>/`` conve
 (see :mod:`napari_deeplabcut.core.project_paths`), which the workspace's
 ``sources/annotations/<id>/frames/original/`` tree does not use, and the FreeDLC side
 bridges this: ``fdlc annotate`` stages a ``labeled-data`` view of a video's frames
-(symlinks) plus a synthesized config, launches napari on that, and on close scales the
-saved coordinates from the original-resolution frames into the processed space the model
-trains on. Keeping napari purely legacy-shaped -- reading project.toml only for the
-schema -- means the original/processed split and the annotation scale stay entirely on
-the FreeDLC side, with a single home for the coordinate transform. Reproducing the
-scale here would either duplicate that logic or, because annotation happens on
-original-resolution frames, write processed-space coordinates into a CollectedData that
-references those frames -- an internally inconsistent artifact.
+(symlinks) plus a synthesized config, launches napari on that, and on close ingests the
+saved coordinates into ``labels.parquet`` in the original-resolution pixels they were
+placed in. Keeping napari purely legacy-shaped -- reading project.toml only for the
+schema -- means the original/processed split stays entirely on the FreeDLC side, which
+converts labels to the processed frames only when it trains or evaluates: one home for
+the coordinate transform.
 
 The mapping is total on the keys the reader touches and conservative elsewhere:
 
