@@ -7,14 +7,14 @@ constraints that shape them.
 ## Standalone workspace annotation (native read/write of `project.toml`)
 
 **Goal.** Let a FreeDLC workspace project be annotated by opening its `project.toml`
-directly in napari, with no `dlc-ws` command in the loop -- napari loads the
+directly in napari, with no `fdlc` command in the loop -- napari loads the
 video's original-resolution frames, and on save writes the workspace's
 `sources/annotations/<id>/labels.parquet` itself, already in the processed
 coordinate space the model trains on.
 
 **Current state.** Two things exist today and are deliberately narrower:
 
-- **`dlc-ws annotate` (the supported path).** FreeDLC stages a legacy
+- **`fdlc annotate` (the supported path).** FreeDLC stages a legacy
   `labeled-data/<id>/` view of a video's original-resolution frames plus a
   synthesized `config.yaml`, launches napari on that, and on close scales the saved
   coordinates from original into processed space when ingesting to `labels.parquet`.
@@ -22,7 +22,7 @@ coordinate space the model trains on.
 - **`project.toml` schema reader (`core/workspace_config.py`).** napari can open a
   workspace `project.toml` for its keypoint *schema* (bodyparts, skeleton, scorer).
   It does not load workspace frames or save to workspace paths; frames and saving
-  still flow through the staging `dlc-ws annotate` builds.
+  still flow through the staging `fdlc annotate` builds.
 
 **Why it is not done yet.** napari's discovery and writer are wired to the
 `labeled-data/<dataset>/` path convention (`core/project_paths.py`): the save target
@@ -53,6 +53,6 @@ of the scale transform.
   (`scale_x`, `scale_y`), derived from the original/processed video dimensions, used
   by both the reader (up) and the writer (down), so the transform is not duplicated.
 
-Until then, `dlc-ws annotate` is the path that produces correct processed-space
+Until then, `fdlc annotate` is the path that produces correct processed-space
 labels; opening `project.toml` in napari is for schema-correct viewing and labeling
 that is then ingested by FreeDLC.
