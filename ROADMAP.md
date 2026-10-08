@@ -47,9 +47,11 @@ scale recorded, and have to be scaled *up* for display.
 - A workspace-aware writer: on save, write `labels.parquet` (original pixels, image
   names as in `frames/original/`) and a `labels.toml` with `space = "original"`,
   rather than a `labeled-data` CollectedData.
-- Proposed markers: `fdlc extract --from-run` currently places a model's
-  predictions in the staged CollectedData; a native path would need its own place
-  for them that is not mistaken for labels.
+- Proposed markers: `fdlc extract --from-run` stages a model's predictions as a
+  `machinelabels-iter0.h5` beside the staged CollectedData, which napari already
+  loads as a machine layer and merges into the labels only when that layer is
+  saved. A native path needs the same: proposals kept apart from the labels until
+  they are accepted.
 
 Until then, `fdlc annotate` is the supported path; opening `project.toml` in napari
 is for schema-correct viewing and labeling that is then ingested by FreeDLC.
