@@ -943,7 +943,7 @@ class TrajectoryMatplotlibCanvas(QWidget, OwnedTimersMixin):
         config_cmap = self._get_config_colormap(layer)
 
         try:
-            bodypart_cycles = build_color_cycles(header, config_cmap) or {}
+            bodypart_cycles = build_color_cycles(header, config_cmap, overrides=md.get("bodypart_colors")) or {}
         except Exception:
             logger.debug("Trajectory plot: failed to build bodypart color cycles", exc_info=True)
             bodypart_cycles = {}

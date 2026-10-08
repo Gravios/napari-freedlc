@@ -32,6 +32,8 @@ def populate_keypoint_layer_properties(
     size: int | None = 8,
     pcutoff: float | None = 0.6,
     colormap: str | None = "viridis",
+    bodypart_colors: dict | None = None,
+    bodypart_sizes: dict | None = None,
 ) -> dict:
     """
     Populate metadata and display properties for a keypoint Points layer.
@@ -42,6 +44,8 @@ def populate_keypoint_layer_properties(
       that as ids[0] == "" (falsy) => color/text by label.
     - Multi-animal DLC: ids[0] is a non-empty individual identifier => color/text by id.
     - Must accept empty labels/ids/likelihood and must not assume ≥ 1 entry.
+    - ``bodypart_colors``/``bodypart_sizes`` (from the config) set a marker's color
+      and size; they are kept in the metadata so recoloring and resizing honour them.
     """
 
     if labels is None:
@@ -70,7 +74,7 @@ def populate_keypoint_layer_properties(
     first_id = ids_list[0] if len(ids_list) > 0 else ""
     use_id = bool(first_id)
 
-    face_color_cycle_maps = build_color_cycles(header, colormap)
+    face_color_cycle_maps = build_color_cycles(header, colormap, overrides=bodypart_colors)
     face_color_prop = "id" if use_id else "label"
 
     return {
@@ -95,6 +99,8 @@ def populate_keypoint_layer_properties(
             "face_color_cycles": face_color_cycle_maps,
             "colormap_name": colormap,
             "paths": paths or [],
+            "bodypart_colors": dict(bodypart_colors or {}),
+            "bodypart_sizes": {str(k): float(v) for k, v in (bodypart_sizes or {}).items()},
         },
     }
 
@@ -265,8 +271,51 @@ def get_uniform_point_size(layer: Points, *, default: int = 6) -> int:
 
 
 def set_uniform_point_size(layer: Points, size: int) -> None:
-    # Scalar assignment keeps it lightweight and applies uniformly.
-    layer.size = float(size)
+    """Size every point ``size``, except bodyparts the config sizes individually."""
+    md = getattr(layer, "metadata", None)
+    if isinstance(md, dict):
+        md["dotsize"] = float(size)
+    if not apply_bodypart_sizes(layer):
+        # Scalar assignment keeps it lightweight and applies uniformly.
+        layer.size = float(size)
+
+
+def apply_bodypart_sizes(layer: Points, indices=None) -> bool:
+    """Size points by their bodypart's configured size; return False if none is configured.
+
+    Points of bodyparts without a size of their own get the layer's ``dotsize``
+    (metadata), else their current size. ``indices`` limits it to those points.
+    """
+    md = getattr(layer, "metadata", None) or {}
+    sizes = md.get("bodypart_sizes") or {}
+    if not sizes:
+        return False
+    labels = np.asarray((getattr(layer, "properties", {}) or {}).get("label", []), dtype=object)
+    current = np.array(layer.size, dtype=float, ndmin=1)
+    if len(labels) != len(current) or len(current) == 0:
+        return False
+    default = md.get("dotsize")
+    rows = range(len(current)) if indices is None else [int(i) % len(current) for i in indices]
+    for i in rows:
+        size = sizes.get(str(labels[i]), default)
+        if size is not None:
+            current[i] = float(size)
+    layer.size = current
+    return True
+
+
+def keep_bodypart_sizes(layer: Points) -> None:
+    """Give points added later their bodypart's configured size (napari adds at ``current_size``)."""
+    if getattr(layer, "_dlc_sizes_connected", False):
+        return
+
+    def _on_data(event, _layer=layer):
+        if str(getattr(event, "action", "")) != "added":
+            return
+        apply_bodypart_sizes(_layer, getattr(event, "data_indices", None))
+
+    layer.events.data.connect(_on_data)
+    layer._dlc_sizes_connected = True
 
 
 def infer_frame_count(

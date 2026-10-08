@@ -119,12 +119,15 @@ def read_config(configname: str) -> list[LayerData]:
         pcutoff=config["pcutoff"],
         colormap=config["colormap"],
         likelihood=np.array([1]),
+        bodypart_colors=config.get("bodypart_colors"),
+        bodypart_sizes=config.get("bodypart_sizes"),
     )
     layer_props["name"] = f"CollectedData_{config['scorer']}"
     layer_props["ndim"] = 3
     layer_props["property_choices"] = layer_props.pop("properties")
     layer_props["metadata"]["project"] = str(Path(configname).parent)
     layer_props["metadata"]["config_colormap"] = str(config.get("colormap", DEFAULT_SINGLE_ANIMAL_CMAP))
+    layer_props["metadata"]["dotsize"] = float(config["dotsize"])  # size of markers without their own
 
     conversion_tables = config.get("SuperAnimalConversionTables")
     if conversion_tables is not None:
@@ -199,9 +202,12 @@ def read_hdf_single(file: Path, *, kind: AnnotationKind | None = None) -> list[L
     try:
         cfg = load_config(find_nearest_config(file, max_levels=3))
         config_colormap = str(cfg.get("colormap", DEFAULT_SINGLE_ANIMAL_CMAP))
+        bodypart_colors, bodypart_sizes = cfg.get("bodypart_colors"), cfg.get("bodypart_sizes")
+        dotsize = cfg.get("dotsize")
     except Exception as e:
         logger.warning("Could not load config for %s; falling back to default colormap. Error: %s", file, e)
         config_colormap = DEFAULT_SINGLE_ANIMAL_CMAP
+        bodypart_colors = bodypart_sizes = dotsize = None
     if "individuals" not in temp.columns.names:
         old_idx = temp.columns.to_frame()
         old_idx.insert(0, "individuals", "")
@@ -251,11 +257,18 @@ def read_hdf_single(file: Path, *, kind: AnnotationKind | None = None) -> list[L
         likelihood=df.get("likelihood"),
         paths=list(paths2inds),
         colormap=config_colormap,
+        bodypart_colors=bodypart_colors,
+        bodypart_sizes=bodypart_sizes,
     )
     layer_props["name"] = file.stem
     layer_props["metadata"]["root"] = str(file.parent)
     layer_props["metadata"]["name"] = layer_props["name"]
     layer_props["metadata"]["config_colormap"] = config_colormap
+    if dotsize is not None:
+        layer_props["metadata"]["dotsize"] = float(dotsize)
+    if bodypart_sizes:
+        default = float(dotsize) if dotsize is not None else float(layer_props["size"])
+        layer_props["size"] = np.array([float(bodypart_sizes.get(str(b), default)) for b in df["bodyparts"]])
 
     # Attach provenance. If explicit kind provided, we store it directly.
     if kind is not None:

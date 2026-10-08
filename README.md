@@ -23,10 +23,17 @@ This repository is **napari-freedlc**, the fork of napari-deeplabcut used by
 [FreeDLC](https://github.com/Gravios/FreeDLC). `fdlc annotate` opens it on a
 workspace video's full-resolution frames and reads the saved labels back; see
 FreeDLC's [workspace guide](https://github.com/Gravios/FreeDLC/blob/main/docs/workspace_cli.md).
-Differences from upstream: it names dangling frame links instead of reporting
-"no images", it reads a workspace `project.toml` for the keypoint schema
-(`core/workspace_config.py`), and it requires `numpy>=2` (as FreeDLC does) and
-`napari<0.9`.
+Differences from upstream:
+
+- it names dangling frame links instead of reporting "no images";
+- it reads a workspace `project.toml` for the keypoint schema
+  (`core/workspace_config.py`), including its `[display]` table;
+- a marker's color and size can be set per bodypart, from `bodypart_colors` and
+  `bodypart_sizes` in the config (FreeDLC writes them from `[display]`);
+- a colormap listing more than 32 colors (viridis, ...) is sampled across its
+  range instead of taking its first entries, which were nearly identical;
+- holding **N** shows the marker names;
+- it requires `numpy>=2` (as FreeDLC does) and `napari<0.9`.
 
 Install it from a clone, **after** FreeDLC -- it installs under the same package
 name, `napari-deeplabcut`, and replaces the PyPI release that `FreeDLC[gui]` pulls

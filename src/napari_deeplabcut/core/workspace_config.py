@@ -31,8 +31,11 @@ The mapping is total on the keys the reader touches and conservative elsewhere:
   multi-animal branch uses, so both keys are populated.
 * ``scorer`` has no workspace equivalent -- the workspace records *experimenters*, a
   list -- so the first experimenter is used, falling back to ``"labeler"``.
-* ``dotsize``/``pcutoff``/``colormap`` are display preferences the manifest does not
-  carry; defaults are supplied and may be overridden from an optional ``[napari]`` table.
+* ``dotsize``/``colormap`` come from the manifest's ``[display]`` table -- the one
+  ``fdlc annotate`` uses -- whose ``[display.bodyparts]`` entries also give
+  ``bodypart_colors``/``bodypart_sizes`` (``name = { color = ..., size = ... }``).
+  ``pcutoff``, and ``dotsize``/``colormap`` when ``[display]`` leaves them out, may come
+  from an optional ``[napari]`` table; defaults are supplied otherwise.
 """
 
 from __future__ import annotations
@@ -119,9 +122,11 @@ def workspace_config_as_dict(path: str | Path) -> dict[str, Any]:
     """
     manifest = read_workspace_manifest(path)
     napari_prefs = manifest.get("napari") if isinstance(manifest.get("napari"), dict) else {}
+    display = manifest.get("display") if isinstance(manifest.get("display"), dict) else {}
+    markers = display.get("bodyparts") if isinstance(display.get("bodyparts"), dict) else {}
     bodyparts = [str(b) for b in (manifest.get("bodyparts") or [])]
 
-    return {
+    config = {
         "Task": manifest.get("task", ""),
         "scorer": _scorer(manifest),
         "bodyparts": bodyparts,
@@ -130,7 +135,14 @@ def workspace_config_as_dict(path: str | Path) -> dict[str, Any]:
         "multianimalproject": bool(manifest.get("multi_animal", False)),
         "individuals": [str(i) for i in (manifest.get("individuals") or [])],
         "uniquebodyparts": [str(u) for u in (manifest.get("unique_bodyparts") or [])],
-        "dotsize": napari_prefs.get("dotsize", DEFAULT_DOTSIZE),
+        "dotsize": display.get("dotsize", napari_prefs.get("dotsize", DEFAULT_DOTSIZE)),
         "pcutoff": napari_prefs.get("pcutoff", DEFAULT_PCUTOFF),
-        "colormap": napari_prefs.get("colormap", DEFAULT_COLORMAP),
+        "colormap": display.get("colormap", napari_prefs.get("colormap", DEFAULT_COLORMAP)),
     }
+    colors = {str(k): v["color"] for k, v in markers.items() if isinstance(v, dict) and "color" in v}
+    sizes = {str(k): v["size"] for k, v in markers.items() if isinstance(v, dict) and "size" in v}
+    if colors:
+        config["bodypart_colors"] = colors
+    if sizes:
+        config["bodypart_sizes"] = sizes
+    return config

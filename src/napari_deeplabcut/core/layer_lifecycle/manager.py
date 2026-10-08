@@ -18,6 +18,7 @@ from ...config.models import AnnotationKind, DLCHeaderModel, ImageMetadata, Poin
 from ...core import keypoints
 from ...core.io import is_video
 from ...core.layer_versioning import mark_layer_presentation_changed
+from ...core.layers import apply_bodypart_sizes, keep_bodypart_sizes
 from ...core.metadata import (
     MergePolicy,
     infer_image_root,
@@ -730,6 +731,8 @@ class LayerLifecycleManager(QObject, OwnedTimersMixin):
             update_save_history(root)
 
         layer.text.visible = False
+        apply_bodypart_sizes(layer)
+        keep_bodypart_sizes(layer)
 
         req = PointsLayerSetupRequest(layer=layer, store=store)
         self.points_layer_setup_requested.emit(req)

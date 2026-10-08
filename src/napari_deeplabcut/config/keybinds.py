@@ -53,6 +53,7 @@ class ShortcutAction(Enum):
     TOGGLE_EDGE_COLOR = auto()
     NEXT_FRAME = auto()
     PREV_FRAME = auto()
+    SHOW_NAMES_WHILE_HELD = auto()
 
 
 # ----------------------------------------
@@ -208,6 +209,33 @@ def _next_frame(ctx: BindingContext):
     )
 
 
+def _keypoint_layers(viewer) -> list[Points]:
+    """The keypoint layers in ``viewer``: Points layers carrying a DLC header."""
+    return [
+        layer
+        for layer in viewer.layers
+        if isinstance(layer, Points) and (getattr(layer, "metadata", None) or {}).get("header") is not None
+    ]
+
+
+def _show_names_while_held(ctx: BindingContext):
+    """Show every keypoint layer's marker names while the key is held, then restore them."""
+
+    def callback(obj):
+        viewer = _viewer_from_callback_arg(ctx, obj)
+        if viewer is None:
+            return
+        layers = _keypoint_layers(viewer)
+        before = [(layer, layer.text.visible) for layer in layers]
+        for layer in layers:
+            layer.text.visible = True
+        yield  # napari resumes the generator when the key is released
+        for layer, visible in before:
+            layer.text.visible = visible
+
+    return callback
+
+
 def _cycle_label_mode(ctx: BindingContext):
     return ctx.controls.cycle_through_label_modes
 
@@ -280,6 +308,15 @@ SHORTCUTS: tuple[ShortcutSpec, ...] = (
         description="Toggle point edge color",
         group="Display",
         scope="global-points",
+    ),
+    ShortcutSpec(
+        keys=("N",),
+        action=ShortcutAction.SHOW_NAMES_WHILE_HELD,
+        get_callback=_show_names_while_held,
+        description="Show marker names while held",
+        group="Display",
+        scope="viewer",
+        overwrite=True,
     ),
     ShortcutSpec(
         keys=("A",),

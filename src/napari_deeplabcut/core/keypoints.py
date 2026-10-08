@@ -12,6 +12,7 @@ from napari.layers import Points
 from napari.layers.points._points_constants import SYMBOL_TRANSLATION_INVERTED
 from napari.layers.points._points_utils import coerce_symbols
 from napari.utils import colormaps
+from napari.utils.colormaps.standardize_color import transform_color
 from pydantic import ValidationError
 from scipy.spatial import cKDTree
 
@@ -433,6 +434,10 @@ class KeypointStore:
             props["likelihood"] = np.concatenate([lik_arr, np.ones(n_new, dtype=float)])
 
             layer.properties = props
+            # new points take their bodypart's configured size (local import: layers imports this module)
+            from napari_deeplabcut.core.layers import apply_bodypart_sizes
+
+            apply_bodypart_sizes(layer, range(n_old, n_total))
             changed = True
 
         elif label_mode is LabelMode.QUICK:
@@ -529,13 +534,20 @@ def _repeat_or_trim(colors: np.ndarray, n_colors: int) -> np.ndarray:
     return out
 
 
+#: A matplotlib colormap listing at most this many colors is a palette (tab10, tab20,
+#: Set3, ...) whose colors are used as listed. A longer list is a gradient stored as a
+#: lookup table -- viridis lists 256 -- and is sampled across its range instead:
+#: taking its first entries would give nearly identical colors.
+PALETTE_MAX = 32
+
+
 def _try_matplotlib_listed_colors(colormap: str | None) -> np.ndarray | None:
     """
-    Return listed RGBA colors from a matplotlib colormap when available.
+    Return listed RGBA colors from a matplotlib colormap when it is a palette.
 
     This is the preferred path for qualitative palettes like Set3, tab10, tab20,
     Dark2, etc., because they should be treated as discrete palettes, not sampled
-    continuously.
+    continuously. Gradients (more than :data:`PALETTE_MAX` listed colors) return None.
     """
     if not colormap:
         return None
@@ -546,7 +558,7 @@ def _try_matplotlib_listed_colors(colormap: str | None) -> np.ndarray | None:
         return None
 
     listed = getattr(mpl_cmap, "colors", None)
-    if listed is None:
+    if listed is None or len(listed) > PALETTE_MAX:
         return None
 
     try:
@@ -606,7 +618,7 @@ def build_color_cycle(n_colors: int, colormap: str | None = "viridis") -> np.nda
     return _sample_continuous_colormap(cmap, n_colors)
 
 
-def build_color_cycles(header: HeaderLike, colormap: str | None = "viridis"):
+def build_color_cycles(header: HeaderLike, colormap: str | None = "viridis", overrides=None):
     """
     Build categorical label/id color mappings from a DLC-style header.
 
@@ -614,6 +626,9 @@ def build_color_cycles(header: HeaderLike, colormap: str | None = "viridis"):
     -----
     - bodyparts always preserve header order
     - individuals preserve header order, excluding blank single-animal placeholders
+    - ``overrides`` (bodypart -> color: a name, hex code or RGB(A)) replaces the
+      colormap's color for those bodyparts; unknown names and unreadable colors
+      are ignored
     """
     bodyparts = [str(x) for x in header.bodyparts]
     individuals = [str(x) for x in header.individuals if str(x) != ""]
@@ -621,7 +636,15 @@ def build_color_cycles(header: HeaderLike, colormap: str | None = "viridis"):
     label_colors = build_color_cycle(len(bodyparts), colormap)
     id_colors = build_color_cycle(len(individuals), colormap)
 
+    labels = dict(zip(bodyparts, label_colors, strict=False))
+    for name, color in (overrides or {}).items():
+        if name in labels:
+            try:
+                labels[name] = transform_color(color)[0]
+            except (ValueError, TypeError):
+                logger.warning("Ignoring unreadable color %r for bodypart %r", color, name)
+
     return {
-        "label": dict(zip(bodyparts, label_colors, strict=False)),
+        "label": labels,
         "id": dict(zip(individuals, id_colors, strict=False)),
     }

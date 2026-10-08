@@ -193,7 +193,7 @@ class ColorSchemeResolver:
 
         config_cmap = self.get_config_colormap(layer)
 
-        bodypart_cycles = build_color_cycles(header, config_cmap) or {}
+        bodypart_cycles = build_color_cycles(header, config_cmap, overrides=md.get("bodypart_colors")) or {}
         if self.is_multianimal(layer):
             individual_cycles = build_color_cycles(header, DEFAULT_MULTI_ANIMAL_INDIVIDUAL_CMAP) or {}
         else:
